@@ -79,10 +79,20 @@ import warnings
 
 from .errors import ParseError
 from ._helpers import (
+    PY2,
     open_or_return,
     open_or_stdin,
     string_types,
 )
+
+
+def _check_file_mode(fo):
+    if not hasattr(fo, 'mode'):
+        return
+    if PY2 and 'b' not in fo.mode:
+        raise TypeError('file should be opened in binary mode')
+    elif not PY2 and 'b' in fo.mode:
+        raise TypeError('file should be opened in text mode')
 
 
 class HBAComment(str):
@@ -304,7 +314,11 @@ class HBA(object):
         """Parse records and comments from file object
 
         :param fo: An iterable returning lines
+
+        The file object must be opened in "text" mode in Python 3 and "binary"
+        mode in Python 2.
         """
+        _check_file_mode(fo)
         for i, line in enumerate(fo):
             stripped = line.lstrip()
             if not stripped or stripped.startswith('#'):
@@ -324,12 +338,16 @@ class HBA(object):
         Line order is preserved. Record fields are vertically aligned to match
         the columen size of column headers from default configuration file.
 
+        The file object must be opened in "text" mode in Python 3 and "binary"
+        mode in Python 2.
+
         .. code::
 
             # TYPE  DATABASE        USER            ADDRESS                 METHOD
             local   all             all                                     trust
         """  # noqa
         with open_or_return(fo or self.path, mode='w') as fo:
+            _check_file_mode(fo)
             for line in self.lines:
                 fo.write(str(line) + os.linesep)
 

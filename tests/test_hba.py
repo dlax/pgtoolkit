@@ -1,3 +1,6 @@
+import io
+import sys
+
 import pytest
 
 HBA_SAMPLE = """\
@@ -265,3 +268,44 @@ def test_merge():
     def r(hba):
         return os.linesep.join([str(l) for l in hba.lines])
     assert r(hba) == r(expected_hba)
+
+
+def test_hba_file_mode(tmp_path):
+    from pgtoolkit.hba import HBA, HBAComment, HBARecord
+
+    PY2 = sys.version_info[0] == 2
+    r_mode = "rb" if PY2 else "r"
+    r_mode_wrong = "r" if PY2 else "rb"
+    w_mode = "wb" if PY2 else "w"
+    w_mode_wrong = "w" if PY2 else "wb"
+
+    hba_lines = [
+        "# a comment\n",
+        "local   db              u                                       md5\n",
+    ]
+    hba_fpath = tmp_path / "hba.conf"
+    with hba_fpath.open("w") as f:
+        for line in hba_lines:
+            if PY2:
+                line = line.decode("ascii")
+            f.write(line)
+
+    # parse
+    hba = HBA()
+    with io.open(str(hba_fpath), r_mode_wrong) as f:
+        with pytest.raises(TypeError):
+            hba.parse(f)
+    hba = HBA()
+    with io.open(str(hba_fpath), r_mode) as f:
+        hba.parse(f)
+
+    # save
+    hba_fpath = tmp_path / "hba-dumped.conf"
+    with io.open(str(hba_fpath), w_mode_wrong) as f:
+        with pytest.raises(TypeError):
+            hba.save(f)
+    with io.open(str(hba_fpath), w_mode) as f:
+        hba.save(f)
+    with io.open(str(hba_fpath)) as f:
+        dumped_lines = f.readlines()
+    assert dumped_lines == hba_lines
