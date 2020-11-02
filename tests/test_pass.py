@@ -99,7 +99,7 @@ def test_parse_lines(mocker):
 
     pgpass = parse(lines)
     with pytest.raises(ParseError):
-        pgpass.parse(['bad:line'])
+        parse(['bad:line'])
 
     pgpass.sort()
 

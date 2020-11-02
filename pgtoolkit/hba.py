@@ -327,11 +327,13 @@ class HBA:
             if isinstance(line, HBARecord):
                 yield line
 
-    def parse(self, fo: Iterable[str]) -> None:
+    @classmethod
+    def parse(cls, fo: Iterable[str], path: Optional[str]) -> "HBA":
         """Parse records and comments from file object
 
         :param fo: An iterable returning lines
         """
+        lines = []
         for i, line in enumerate(fo):
             stripped = line.lstrip()
             record: Union[HBARecord, HBAComment]
@@ -342,7 +344,10 @@ class HBA:
                     record = HBARecord.parse(line)
                 except Exception as e:
                     raise ParseError(1 + i, line, str(e))
-            self.lines.append(record)
+            lines.append(record)
+        self = cls(lines)
+        self.path = path
+        return self
 
     def save(self, fo: Optional[Union[str, IO[str]]] = None) -> None:
         """Write records and comments in a file
@@ -447,8 +452,7 @@ def parse(file: Union[str, Iterable[str]]) -> HBA:
             hba = parse(fo)
             hba.path = file
     else:
-        hba = HBA()
-        hba.parse(file)
+        hba = HBA.parse(file, getattr(file, "name", None))
     return hba
 
 

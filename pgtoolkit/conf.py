@@ -67,10 +67,8 @@ def parse(fo: Union[str, IO[str]]) -> "Configuration":
     :returns: A :class:`Configuration` containing parsed configuration.
 
     """
-    conf = Configuration()
     with open_or_return(fo) as fo:
-        conf.parse(fo)
-        conf.path = getattr(fo, 'name', None)
+        conf = Configuration.parse(fo, getattr(fo, 'name', None))
     return conf
 
 
@@ -257,7 +255,10 @@ class Configuration:
             path=None,
         ))
 
-    def parse(self, fo: Iterable[str]) -> None:
+    @classmethod
+    def parse(cls, fo: Iterable[str], path: Optional[str]) -> "Configuration":
+        self = cls()
+        self.path = path
         for raw_line in fo:
             self.lines.append(raw_line)
             line = raw_line.strip()
@@ -271,6 +272,7 @@ class Configuration:
             value = parse_value(kwargs.pop('value'))
             entry = Entry(value=value, raw_line=raw_line, **kwargs)
             self.entries[entry.name] = entry
+        return self
 
     def __getattr__(self, name: str) -> Value:
         try:

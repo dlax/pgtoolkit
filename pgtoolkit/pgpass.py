@@ -329,7 +329,8 @@ class PassFile:
             if isinstance(line, PassEntry):
                 yield line
 
-    def parse(self, fo: Iterable[str]) -> None:
+    @classmethod
+    def parse(cls, fo: Iterable[str], path: Optional[str]) -> "PassFile":
         """Parse lines
 
         :param fo: A line iterator such as a file-like object.
@@ -337,6 +338,7 @@ class PassFile:
         Raises ``ParseError`` if a bad line is found.
         """
         entry: Union[PassComment, PassEntry]
+        lines = []
         for i, line in enumerate(fo):
             stripped = line.lstrip()
             if not stripped or stripped.startswith('#'):
@@ -346,7 +348,10 @@ class PassFile:
                     entry = PassEntry.parse(line)
                 except Exception as e:
                     raise ParseError(1 + i, line, str(e))
-            self.lines.append(entry)
+            lines.append(entry)
+        self = cls(lines)
+        self.path = path
+        return self
 
     def sort(self) -> None:
         """Sort entries preserving comments.
@@ -462,8 +467,7 @@ def parse(file: Union[str, IO[str]]) -> PassFile:
             pgpass = parse(fo)
             pgpass.path = file
     else:
-        pgpass = PassFile()
-        pgpass.parse(file)
+        pgpass = PassFile.parse(file, getattr(file, "name", None))
     return pgpass
 
 
