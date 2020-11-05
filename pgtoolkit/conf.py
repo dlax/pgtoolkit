@@ -39,6 +39,7 @@ You can use this module to dump a configuration file as JSON object
 
 
 import enum
+import functools
 import json
 from ast import literal_eval
 from collections import OrderedDict
@@ -46,7 +47,18 @@ import pathlib
 import re
 import sys
 from datetime import timedelta
-from typing import Dict, IO, Iterable, List, Optional, Tuple, Union
+from typing import (
+    Callable,
+    Dict,
+    IO,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from ._helpers import JSONDateEncoder
 from ._helpers import open_or_return
@@ -183,48 +195,104 @@ _timedelta_re = re.compile(r'^\s*(?P<number>\d+)\s*(?P<unit>ms|s|min|h|d)\s*$')
 
 Value = Union[str, bool, float, int, timedelta]
 
+F = TypeVar('F', bound=Callable[..., Value])
 
+_PARSERS = []
+
+
+def register_parser(func: F) -> F:
+    assert func not in _PARSERS
+    _PARSERS.append(func)
+    return func
+
+
+def eval_raw(func: F) -> F:
+
+    @functools.wraps(func)
+    def wrapper(raw: str) -> Value:
+        if raw.startswith("'"):
+            try:
+                raw = literal_eval(raw)
+            except SyntaxError as e:
+                raise ValueError(str(e))
+        return func(raw)
+
+    return cast(F, wrapper)
+
+
+@register_parser
+@eval_raw
+def parse_octal(raw: str) -> int:
+    if not raw.startswith('0'):
+        raise ValueError(raw)
+    try:
+        return int(raw, base=8)
+    except ValueError:
+        raise ValueError(raw) from None
+
+
+@register_parser
+@eval_raw
+def parse_mem(raw: str) -> int:
+    m = _memory_re.match(raw)
+    if not m:
+        raise ValueError(raw)
+    unit = m.group('unit')
+    mul = MEMORY_MULTIPLIERS[unit]
+    return int(m.group('number')) * mul
+
+
+@register_parser
+@eval_raw
+def parse_time(raw: str) -> timedelta:
+    m = _timedelta_re.match(raw)
+    if not m:
+        raise ValueError(raw)
+    unit = m.group('unit')
+    arg = TIMEDELTA_ARGNAME[unit]
+    kwargs = {arg: int(m.group('number'))}
+    return timedelta(**kwargs)
+
+
+@register_parser
+@eval_raw
+def parse_boolean(raw: str) -> bool:
+    if raw in ('true', 'yes', 'on'):
+        return True
+    if raw in ('false', 'no', 'off'):
+        return False
+    raise ValueError(raw)
+
+
+@register_parser
+@eval_raw
+def parse_numeric(raw: str) -> Union[float, int]:
+    try:
+        return int(raw)
+    except ValueError:
+        try:
+            return float(raw)
+        except ValueError:
+            raise ValueError(raw) from None
+
+
+@register_parser
+@eval_raw
+def parse_string(raw: str) -> str:
+    return raw
+
+
+@eval_raw
 def parse_value(raw: str) -> Value:
     # Ref.
     # https://www.postgresql.org/docs/current/static/config-setting.html#CONFIG-SETTING-NAMES-VALUES
 
-    if raw.startswith("'"):
+    for parser in _PARSERS:
         try:
-            raw = literal_eval(raw)
-        except SyntaxError as e:
-            raise ValueError(str(e))
-
-    if raw.startswith('0'):
-        try:
-            return int(raw, base=8)
+            return parser(raw)
         except ValueError:
-            pass
-
-    m = _memory_re.match(raw)
-    if m:
-        unit = m.group('unit')
-        mul = MEMORY_MULTIPLIERS[unit]
-        return int(m.group('number')) * mul
-
-    m = _timedelta_re.match(raw)
-    if m:
-        unit = m.group('unit')
-        arg = TIMEDELTA_ARGNAME[unit]
-        kwargs = {arg: int(m.group('number'))}
-        return timedelta(**kwargs)
-
-    elif raw in ('true', 'yes', 'on'):
-        return True
-    elif raw in ('false', 'no', 'off'):
-        return False
-    else:
-        try:
-            return int(raw)
-        except ValueError:
-            try:
-                return float(raw)
-            except ValueError:
-                return raw
+            continue
+    raise ValueError(raw)
 
 
 class Entry:
