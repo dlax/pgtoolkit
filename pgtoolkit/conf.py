@@ -10,6 +10,13 @@ API Reference
 -------------
 
 .. autofunction:: parse
+.. autofunction:: parse_value
+.. autofunction:: parse_octal
+.. autofunction:: parse_mem
+.. autofunction:: parse_time
+.. autofunction:: parse_boolean
+.. autofunction:: parse_numeric
+.. autofunction:: parse_string
 .. autoclass:: Configuration
 
 
@@ -223,6 +230,11 @@ def eval_raw(func: F) -> F:
 @register_parser
 @eval_raw
 def parse_octal(raw: str) -> int:
+    """Parse a string as an octal configuration value.
+
+    >>> parse_octal("011")
+    9
+    """
     if not raw.startswith('0'):
         raise ValueError(raw)
     try:
@@ -234,6 +246,13 @@ def parse_octal(raw: str) -> int:
 @register_parser
 @eval_raw
 def parse_mem(raw: str) -> int:
+    """Parse a string as a memory configuration value.
+
+    >>> parse_mem("2kB")
+    2048
+    >>> parse_mem("12GB")
+    12884901888
+    """
     m = _memory_re.match(raw)
     if not m:
         raise ValueError(raw)
@@ -245,6 +264,13 @@ def parse_mem(raw: str) -> int:
 @register_parser
 @eval_raw
 def parse_time(raw: str) -> timedelta:
+    """Parse a string as a timedelta configuration value.
+
+    >>> parse_time("10 ms")
+    datetime.timedelta(microseconds=10000)
+    >>> parse_time("42 d")
+    datetime.timedelta(days=42)
+    """
     m = _timedelta_re.match(raw)
     if not m:
         raise ValueError(raw)
@@ -257,6 +283,13 @@ def parse_time(raw: str) -> timedelta:
 @register_parser
 @eval_raw
 def parse_boolean(raw: str) -> bool:
+    """Parse a string as a boolean configuration value.
+
+    >>> parse_boolean("off")
+    False
+    >>> parse_boolean("true")
+    True
+    """
     if raw in ('true', 'yes', 'on'):
         return True
     if raw in ('false', 'no', 'off'):
@@ -267,6 +300,13 @@ def parse_boolean(raw: str) -> bool:
 @register_parser
 @eval_raw
 def parse_numeric(raw: str) -> Union[float, int]:
+    """Parse a string as a numeric configuration value.
+
+    >>> parse_numeric('6')
+    6
+    >>> parse_numeric('12.3')
+    12.3
+    """
     try:
         return int(raw)
     except ValueError:
@@ -279,14 +319,20 @@ def parse_numeric(raw: str) -> Union[float, int]:
 @register_parser
 @eval_raw
 def parse_string(raw: str) -> str:
+    """Parse a string as a string configuration value.
+
+    >>> parse_string("'read committed'")
+    'read committed'
+    """
     return raw
 
 
 @eval_raw
 def parse_value(raw: str) -> Value:
-    # Ref.
-    # https://www.postgresql.org/docs/current/static/config-setting.html#CONFIG-SETTING-NAMES-VALUES
+    """Parse a string as a PostgreSQL configuration value.
 
+    https://www.postgresql.org/docs/current/config-setting.html
+    """
     for parser in _PARSERS:
         try:
             return parser(raw)
