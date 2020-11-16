@@ -235,11 +235,13 @@ class Entry:
         self,
         name: str,
         value: Value,
+        commented: bool = False,
         comment: Optional[str] = None,
         raw_line: Optional[str] = None,
     ) -> None:
         self.name = name
         self.value = value
+        self.commented = commented
         self.comment = comment
         # Store the raw_line to track the position in the list of lines.
         self.raw_line = raw_line
@@ -301,6 +303,8 @@ class Entry:
             name=self.name, value=self.serialize())
         if self.comment:
             line += '  # ' + self.comment
+        if self.commented:
+            line = '#' + line
         return line
 
 
@@ -358,8 +362,17 @@ class Configuration:
         for raw_line in fo:
             self.lines.append(raw_line)
             line = raw_line.strip()
-            if not line or line.startswith('#'):
+            if not line:
                 continue
+            commented = False
+            if line.startswith('#'):
+                if '=' in line:
+                    # a commented parameter
+                    commented = True
+                    line = line.lstrip('#').lstrip()
+                else:
+                    # a real comment
+                    continue
 
             m = self._parameter_re.match(line)
             if not m:
@@ -374,7 +387,11 @@ class Configuration:
                 include_type = IncludeType[name]
             except KeyError:
                 self.entries[name] = Entry(
-                    name=name, value=value, raw_line=raw_line, **kwargs
+                    name=name,
+                    value=value,
+                    commented=commented,
+                    raw_line=raw_line,
+                    **kwargs
                 )
             else:
                 assert isinstance(value, str), type(value)
@@ -424,7 +441,8 @@ class Configuration:
         return iter(self.entries.values())
 
     def as_dict(self) -> Dict[str, Value]:
-        return dict([(k, v.value) for k, v in self.entries.items()])
+        return dict([(k, v.value) for k, v in self.entries.items()
+                     if not v.commented])
 
     def save(self, fo: Optional[Union[str, IO[str]]] = None) -> None:
         """Write configuration to a file.

@@ -94,7 +94,9 @@ def test_parser():
     primary_conninfo = 'host=''example.com'' port=5432 dbname=mydb connect_timeout=10'
     port = 5432
     bonjour 'without equals'
+    # bonjour_name = ''		# defaults to the computer name
     shared.buffers = 248MB
+    #authentication_timeout = 1min		# 1s-600s
     """).splitlines(True)  # noqa
 
     conf = parse(lines)
@@ -111,6 +113,16 @@ def test_parser():
     )
     assert 'without equals' == conf.bonjour
     assert 248 * 1024 * 1024 == conf['shared.buffers']
+
+    assert conf.entries['bonjour_name'].commented
+    assert str(conf.entries['bonjour_name']) == "#bonjour_name = ''  # defaults to the computer name"
+    assert conf.entries['bonjour_name'].commented
+    assert conf.entries['authentication_timeout'].value == timedelta(minutes=1)
+    assert conf.entries['authentication_timeout'].commented
+    assert (
+        str(conf.entries['authentication_timeout']) ==
+        "#authentication_timeout = '1 min'  # 1s-600s"
+    )
 
     dict_ = conf.as_dict()
     assert '*' == dict_['listen_addresses']
